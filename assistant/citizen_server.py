@@ -120,6 +120,78 @@ def get_required_documents() -> dict:
 
 
 @mcp.tool()
+def get_form_guidance() -> dict:
+    """Explain how to complete the pension application form."""
+    return {
+        "steps": [
+            {
+                "step": 1,
+                "title": "Personal details",
+                "fields": ["Applicant name", "Date of birth", "Gender", "Marital status"],
+                "guidance": "Enter the applicant's details exactly as shown on the age proof.",
+            },
+            {
+                "step": 2,
+                "title": "Address",
+                "fields": ["Village", "Block"],
+                "guidance": "Choose the correct village and block where the applicant lives.",
+            },
+            {
+                "step": 3,
+                "title": "Bank details",
+                "fields": ["Bank account number", "IFSC code"],
+                "guidance": "Enter an account belonging to the applicant and check every digit before continuing.",
+            },
+            {
+                "step": 4,
+                "title": "Age proof",
+                "fields": ["Age-proof document"],
+                "guidance": "Upload one clear JPG, PNG, or PDF file no larger than 5 MB.",
+            },
+            {
+                "step": 5,
+                "title": "Review and declaration",
+                "fields": ["Application review", "Declaration"],
+                "guidance": "Review all details, correct mistakes, and submit only after confirming the declaration.",
+            },
+        ],
+        "validation_rules": [
+            "The applicant must be at least 60 years old.",
+            "All required personal, address, and bank fields must be completed.",
+            "An age-proof document is required.",
+            "A mobile number cannot have another active pending or approved application.",
+        ],
+        "safety_note": "Do not share OTPs, passwords, or full bank details in chat.",
+    }
+
+
+@mcp.tool()
+def get_connected_applications(ctx: Context) -> dict:
+    """List active third-party applications connected to the citizen account."""
+    mobile = _citizen_mobile(ctx)
+    subject = "citizen:%s" % mobile
+    with get_cursor() as cursor:
+        cursor.execute(
+            "SELECT client_name, client_id, created_at, expires_at "
+            "FROM oauth_refresh_tokens "
+            "WHERE subject = %s AND role = 'citizen' AND scope = 'citizen' "
+            "AND revoked_at IS NULL AND expires_at > NOW() "
+            "ORDER BY created_at DESC",
+            (subject,),
+        )
+        connections = [
+            {
+                "client_name": row[0],
+                "client_id": row[1],
+                "created_at": _iso(row[2]),
+                "expires_at": _iso(row[3]),
+            }
+            for row in cursor.fetchall()
+        ]
+    return {"connections": connections}
+
+
+@mcp.tool()
 def withdraw_application(ctx: Context, application_no: str, reason: str = "") -> dict:
     """Withdraw the authenticated citizen's pending application."""
     mobile = _citizen_mobile(ctx)

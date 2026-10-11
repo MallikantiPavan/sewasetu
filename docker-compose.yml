@@ -20,12 +20,14 @@ services:
       # the address at which people reach this portal; stamped into sign-in tokens and
       # discovery documents, so it must be the public one when deployed
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      EVAL_RESULTS_PATH: /var/lib/sewasetu/eval-results/latest.json
     depends_on:
       - db
       - smsgw
     volumes:
       - uploads:/var/sewasetu/uploads
       - applogs:/var/log/sewasetu
+      - ./evals/results:/var/lib/sewasetu/eval-results:ro
 
   scheduler:
     build: ./app
@@ -43,6 +45,42 @@ services:
     # users via the app at /__gateway/ (so no second host port is needed)
     expose:
       - "8025"
+
+  citizen-mcp:
+    build: ./assistant
+    command: ["python", "citizen_server.py"]
+    ports:
+      - "8101:8101"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: sewasetu
+      DB_USER: sewasetu
+      DB_PASSWORD: sewasetu123
+      OAUTH_ISSUER: ${OAUTH_ISSUER:-http://localhost:8000}
+      MCP_AUDIENCE: ${CITIZEN_MCP_AUDIENCE:-http://localhost:8101}
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8101
+    depends_on:
+      - db
+
+  officer-mcp:
+    build: ./assistant
+    command: ["python", "officer_server.py"]
+    ports:
+      - "8102:8102"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: sewasetu
+      DB_USER: sewasetu
+      DB_PASSWORD: sewasetu123
+      OAUTH_ISSUER: ${OAUTH_ISSUER:-http://localhost:8000}
+      MCP_AUDIENCE: ${OFFICER_MCP_AUDIENCE:-http://localhost:8102}
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 8102
+    depends_on:
+      - db
 
 volumes:
   pgdata:

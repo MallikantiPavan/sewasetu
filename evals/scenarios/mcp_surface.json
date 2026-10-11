@@ -1,0 +1,11 @@
+{
+  "id": "mcp-surface-01",
+  "name": "MCP transport and tool surface",
+  "checks": [
+    "initialize succeeds",
+    "citizen endpoint exposes only citizen tools",
+    "officer endpoint exposes only officer tools",
+    "get_required_documents returns structured content"
+  ],
+  "endpoints": {"citizen": "http://127.0.0.1:8101/mcp", "officer": "http://127.0.0.1:8102/mcp"}
+}

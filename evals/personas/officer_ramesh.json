@@ -1,0 +1,11 @@
+{
+  "id": "ramesh-officer-01",
+  "type": "officer",
+  "name": "Ramesh Kumar",
+  "role": "Block officer",
+  "block": "Sonari",
+  "style": "Precise and task-focused.",
+  "goal": "Review pending applications and record a justified decision.",
+  "constraints": ["Must not approve non-pending applications", "Must leave an audit trail"],
+  "expected": {"required_tools": ["search_applications", "get_application", "approve_application", "reject_application", "get_audit_history"]}
+}

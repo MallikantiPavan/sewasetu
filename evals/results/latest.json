@@ -1,0 +1,62 @@
+{
+  "generated_at": "2026-10-11T09:50:03.979258+00:00",
+  "endpoints": [
+    {
+      "endpoint": "citizen",
+      "checks": [
+        {
+          "name": "initialize",
+          "passed": true
+        },
+        {
+          "name": "tool isolation",
+          "passed": true,
+          "actual": [
+            "get_application_status",
+            "get_application_details",
+            "get_required_documents",
+            "get_form_guidance",
+            "get_connected_applications",
+            "withdraw_application"
+          ]
+        },
+        {
+          "name": "public tool call",
+          "passed": true
+        },
+        {
+          "name": "protected tool call",
+          "passed": null,
+          "skipped": true
+        }
+      ],
+      "passed": true
+    },
+    {
+      "endpoint": "officer",
+      "checks": [
+        {
+          "name": "initialize",
+          "passed": true
+        },
+        {
+          "name": "tool isolation",
+          "passed": true,
+          "actual": [
+            "search_applications",
+            "get_application",
+            "approve_application",
+            "reject_application",
+            "get_audit_history"
+          ]
+        },
+        {
+          "name": "protected tool call",
+          "passed": null,
+          "skipped": true
+        }
+      ],
+      "passed": true
+    }
+  ]
+}

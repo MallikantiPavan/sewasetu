@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Evaluation Dashboard</h2>
+{% if results.error %}<p class="note">{{ results.error }}</p>{% endif %}
+{% if results.generated_at %}<p class="note">Generated: {{ results.generated_at }}</p>{% endif %}
+{% for endpoint in results.endpoints or [] %}
+<h3>{{ endpoint.endpoint|capitalize }} MCP</h3>
+<table class="tbl">
+  <tr><th>Check</th><th>Result</th><th>Details</th></tr>
+  {% for check in endpoint.checks or [] %}
+  <tr>
+    <td>{{ check.name }}</td>
+    <td>{% if check.skipped %}Skipped{% elif check.passed %}PASS{% else %}FAIL{% endif %}</td>
+    <td>{{ check.failure or check.actual or "" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p><b>Endpoint result:</b> {% if endpoint.passed %}PASS{% else %}FAIL{% endif %}</p>
+{% endfor %}
+{% endblock %}

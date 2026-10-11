@@ -13,6 +13,7 @@ import re
 import random
 import hashlib
 import configparser
+import json
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 
@@ -226,6 +227,22 @@ def index():
 @app.route("/about")
 def about():
     return render_template("about.html")
+
+
+@app.route("/eval-dashboard")
+def eval_dashboard():
+    """Show sanitized evaluation results without exposing credentials or tokens."""
+    configured_path = os.environ.get("EVAL_RESULTS_PATH")
+    result_path = configured_path or os.path.join(BASE_DIR, "..", "evals", "results", "latest.json")
+    result = {"endpoints": [], "generated_at": None}
+    try:
+        with open(result_path, encoding="utf-8") as result_file:
+            loaded = json.load(result_file)
+            if isinstance(loaded, dict):
+                result = loaded
+    except (OSError, ValueError):
+        result["error"] = "Evaluation results are not available yet."
+    return render_template("eval_dashboard.html", results=result)
 
 
 @app.route("/__gateway/", defaults={"subpath": ""})

@@ -1,0 +1,11 @@
+{
+  "id": "savitri-devi-01",
+  "type": "citizen",
+  "name": "Savitri Devi",
+  "age": 67,
+  "village": "Rampur",
+  "style": "Short Hindi-English sentences; asks for confirmation.",
+  "goal": "Understand the required documents and check pension status.",
+  "constraints": ["Needs clear, simple answers", "Must not see another citizen's data"],
+  "expected": {"required_document_tool": "get_required_documents", "status_scope": "authenticated citizen only"}
+}
