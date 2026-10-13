@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-11T09:50:03.979258+00:00",
+  "generated_at": "2026-10-11T11:14:20.338140+00:00",
   "endpoints": [
     {
       "endpoint": "citizen",
@@ -16,6 +16,7 @@
             "get_application_details",
             "get_required_documents",
             "get_form_guidance",
+            "submit_application",
             "get_connected_applications",
             "withdraw_application"
           ]
@@ -26,8 +27,7 @@
         },
         {
           "name": "protected tool call",
-          "passed": null,
-          "skipped": true
+          "passed": true
         }
       ],
       "passed": true
@@ -52,11 +52,31 @@
         },
         {
           "name": "protected tool call",
-          "passed": null,
-          "skipped": true
+          "passed": true
         }
       ],
       "passed": true
     }
-  ]
+  ],
+  "workflow": {
+    "checks": [
+      {
+        "name": "citizen submission",
+        "passed": true
+      },
+      {
+        "name": "officer sees submitted application",
+        "passed": true
+      },
+      {
+        "name": "officer approval",
+        "passed": true
+      },
+      {
+        "name": "citizen sees approved status",
+        "passed": true
+      }
+    ],
+    "passed": true
+  }
 }

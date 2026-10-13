@@ -3,18 +3,37 @@
 import os
 from datetime import datetime
 
-import jwt
-import requests
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import Context, FastMCP
 
+import auth
 from db import get_cursor
 
 
-mcp = FastMCP("Sewa Setu Officer Assistant")
+MCP_RESOURCE = (
+	os.getenv("MCP_AUDIENCE", "http://localhost:8102").split(",")[0].strip().rstrip("/")
+)
+
+mcp = FastMCP(
+	"Sewa Setu Officer Assistant",
+	token_verifier=auth.PortalTokenVerifier(MCP_RESOURCE),
+	auth=AuthSettings(
+		issuer_url=auth.issuer(),
+		resource_server_url=MCP_RESOURCE,
+		required_scopes=["officer"],
+		# The verifier checks the token's audience against the portal issuer and
+		# this server's URL itself, so the transport need not re-check it.
+		validate_token_resource=False,
+	),
+)
 
 APPLICATION_COLUMNS = (
 	"id, application_no, applicant_name, mobile, dob, village, block, "
 	"status, submitted_at, decided_at, decided_by, doc_path"
+)
+ALLOWED_BLOCKS = tuple(
+	block.strip() for block in os.getenv("MCP_ALLOWED_BLOCKS", "Sonari").split(",")
+	if block.strip()
 )
 
 
@@ -39,42 +58,9 @@ def _application(row):
 
 
 def _officer(ctx: Context):
-	"""Validate the portal JWT and return the authenticated officer username."""
-	request = ctx.request_context.request
-	header = request.headers.get("authorization", "")
-	if not header.lower().startswith("bearer "):
-		raise ValueError("An officer access token is required.")
-
-	token = header[7:].strip()
-	issuer = os.getenv("OAUTH_ISSUER", "http://localhost:8000").rstrip("/")
-	audience = os.getenv("MCP_AUDIENCE", "http://localhost:8102")
-	response = requests.get(issuer + "/.well-known/jwks.json", timeout=5)
-	response.raise_for_status()
-	keys = response.json().get("keys", [])
-	header_data = jwt.get_unverified_header(token)
-	jwk = next((key for key in keys if key.get("kid") == header_data.get("kid")), None)
-	if jwk is None:
-		raise ValueError("The access token is not valid for this service.")
-
-	try:
-		claims = jwt.decode(
-			token,
-			jwt.algorithms.RSAAlgorithm.from_jwk(jwk),
-			algorithms=["RS256"],
-			audience=audience,
-			issuer=issuer,
-		)
-	except jwt.PyJWTError as exc:
-		raise ValueError("The officer access token is invalid or expired.") from exc
-
-	subject = claims.get("sub", "")
-	if (
-		claims.get("role") != "officer"
-		or claims.get("scope") != "officer"
-		or not subject.startswith("officer:")
-	):
-		raise ValueError("This endpoint accepts officer authorization only.")
-	return subject.split(":", 1)[1]
+	"""Validate the officer access token and return the username."""
+	claims = auth.authenticate(ctx.request_context.request, MCP_RESOURCE, "officer")
+	return claims["sub"].split(":", 1)[1]
 
 
 def _parse_date(value, field_name):
@@ -111,6 +97,8 @@ def search_applications(
 
 	conditions = []
 	parameters = []
+	conditions.append("block = ANY(%s)")
+	parameters.append(list(ALLOWED_BLOCKS))
 	if status.strip():
 		conditions.append("status = %s")
 		parameters.append(status.strip().upper())
@@ -151,8 +139,8 @@ def get_application(ctx: Context, application_no: str) -> dict:
 	with get_cursor() as cursor:
 		cursor.execute(
 			"SELECT " + APPLICATION_COLUMNS +
-			" FROM applications WHERE application_no = %s",
-			(application_no.strip(),),
+			" FROM applications WHERE application_no = %s AND block = ANY(%s)",
+			(application_no.strip(), list(ALLOWED_BLOCKS)),
 		)
 		application = _application(cursor.fetchone())
 		if application is None:
@@ -185,8 +173,9 @@ def _decide(ctx, application_no, new_status, note):
 		cursor.execute(
 			"UPDATE applications SET status = %s, decided_at = NOW(), decided_by = %s "
 			"WHERE application_no = %s AND status = 'PENDING' "
+			"AND block = ANY(%s) "
 			"RETURNING id, application_no, status",
-			(new_status, officer, application_no.strip()),
+			(new_status, officer, application_no.strip(), list(ALLOWED_BLOCKS)),
 		)
 		row = cursor.fetchone()
 		if row is None:
@@ -221,8 +210,9 @@ def get_audit_history(ctx: Context, application_no: str) -> dict:
 		cursor.execute(
 			"SELECT a.at, a.action, a.actor, a.note FROM audit_log a "
 			"JOIN applications p ON p.id = a.application_id "
-			"WHERE p.application_no = %s ORDER BY a.at ASC, a.id ASC",
-			(application_no.strip(),),
+			"WHERE p.application_no = %s AND p.block = ANY(%s) "
+			"ORDER BY a.at ASC, a.id ASC",
+			(application_no.strip(), list(ALLOWED_BLOCKS)),
 		)
 		audit = [
 			{"at": _iso(row[0]), "action": row[1], "actor": row[2], "note": row[3]}

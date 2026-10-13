@@ -58,11 +58,17 @@ services:
       DB_USER: sewasetu
       DB_PASSWORD: sewasetu123
       OAUTH_ISSUER: ${OAUTH_ISSUER:-http://localhost:8000}
+      OAUTH_JWKS_URL: http://app:8000
       MCP_AUDIENCE: ${CITIZEN_MCP_AUDIENCE:-http://localhost:8101}
+      MCP_ALLOWED_BLOCKS: ${MCP_ALLOWED_BLOCKS:-Sonari}
+      UPLOAD_DIR: /var/sewasetu/uploads
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8101
     depends_on:
       - db
+      - app
+    volumes:
+      - uploads:/var/sewasetu/uploads
 
   officer-mcp:
     build: ./assistant
@@ -76,11 +82,14 @@ services:
       DB_USER: sewasetu
       DB_PASSWORD: sewasetu123
       OAUTH_ISSUER: ${OAUTH_ISSUER:-http://localhost:8000}
+      OAUTH_JWKS_URL: http://app:8000
       MCP_AUDIENCE: ${OFFICER_MCP_AUDIENCE:-http://localhost:8102}
+      MCP_ALLOWED_BLOCKS: ${MCP_ALLOWED_BLOCKS:-Sonari}
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8102
     depends_on:
       - db
+      - app
 
 volumes:
   pgdata:

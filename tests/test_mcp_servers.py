@@ -74,6 +74,19 @@ class McpServerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "rejection reason"):
                 officer_server._decide(context, "APP-1", "REJECTED", " ")
 
+    def test_submission_rejects_underage_and_unsupported_block_before_database(self):
+        context = Mock()
+        with patch.object(citizen_server, "_citizen_mobile", return_value="9999999999"), \
+             patch.object(citizen_server, "get_cursor") as get_cursor:
+            with self.assertRaises(ValueError) as raised:
+                citizen_server.submit_application(
+                    context, "Asha", "01/01/1970", "Rampur", "Rajapara",
+                    "123456789", "SBIN0003077", "proof.pdf", "cGRm",
+                )
+        self.assertIn("60 years", str(raised.exception))
+        self.assertIn("block is not supported", str(raised.exception))
+        get_cursor.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
