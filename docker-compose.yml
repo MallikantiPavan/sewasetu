@@ -5,6 +5,8 @@ services:
       POSTGRES_DB: sewasetu
       POSTGRES_USER: sewasetu
       POSTGRES_PASSWORD: sewasetu123
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./app/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql

@@ -1,123 +1,138 @@
-# Loom Video Guide
+# Loom Video Script
 
-Target length: 2 minutes 30 seconds to 3 minutes. Show your face briefly at the beginning, then share the screen. Do not show passwords, access tokens, refresh tokens, OTPs, database credentials, or private user data.
+**Total time: ~3 minutes. Screen + Cam mode. Face in corner, screen main focus.**
 
-## Before Recording
+---
 
-Start the local stack:
+## Step 1: Before You Record (Run These)
 
+### Command 1: Start the full stack
 ```bash
+cd /home/pavan/Desktop/AI_4_Bharat/sewasetu-ai-handout
 ADMIN_PASSWORD=dev-password docker compose up -d
 ```
+**Why:** Starts 6 containers — portal, database, citizen MCP, officer MCP, SMS gateway, and scheduler. The MCP servers on ports 8101 and 8102 are what you built.
 
-Confirm the services:
+### Command 2: Open the eval dashboard
+Open in browser: `http://localhost:8000/eval-dashboard`
+**Why:** This shows the endpoint checks and test results as a web page. You will screen-share this during the video.
 
+### Command 3: Get tokens and run the full test
 ```bash
-docker compose ps
+./get_tokens.sh dev-password 9876500000
+```
+**Why:** This registers an OAuth client, gives you two URLs to get citizen and officer tokens (enter mobile + OTP for citizen, admin + password for officer), then runs the full end-to-end test automatically. Keep the terminal output visible — you will show it in the video.
+
+---
+
+## Step 2: Record the Video
+
+### 0:00 - 0:15 | Introduction
+
+**Say:**
+> "I built two MCP servers that let any AI assistant help a citizen apply for the old age pension and help a block officer decide applications. The portal and database remain the system of record. Built on open standards — MCP and OAuth 2.1."
+
+**Show:** Your face, then switch to screen.
+
+---
+
+### 0:15 - 0:50 | Citizen MCP Server
+
+**Say:**
+> "This is the citizen-facing MCP server on port 8101. It exposes 7 tools that an AI assistant can call: get_form_guidance explains the form steps, get_required_documents lists what is needed, submit_application validates and submits, get_application_status tracks applications, get_application_details shows one application, withdraw_application lets a citizen withdraw, and get_connected_applications shows which apps are connected."
+
+> "The citizen's identity comes from the OAuth token — never from a tool argument. The AI cannot act for a different citizen. The validation rules are shared with the portal through a common module, so the assistant cannot get anyone a pension the counter would not. Bank details are stripped from status responses."
+
+**Show:** Scroll through the terminal output showing the citizen endpoint checks:
+```
+"endpoint": "citizen",
+"checks": [
+  {"name": "initialize", "passed": true},
+  {"name": "tool isolation", "passed": true, "actual": [7 tools...]},
+  {"name": "protected tool call", "passed": true}
+]
 ```
 
-Open these pages or terminals before recording:
+---
 
-- Portal: `http://localhost:8000/`
-- Evaluation dashboard: `http://localhost:8000/eval-dashboard`
-- Citizen MCP endpoint: `http://localhost:8101/mcp`
-- Officer MCP endpoint: `http://localhost:8102/mcp`
+### 0:50 - 1:20 | Officer MCP Server
 
-Run the evaluator before recording and keep the result ready:
+**Say:**
+> "This is the officer-facing MCP server on port 8102. Separate endpoint, separate OAuth scope — a citizen token cannot see officer tools. It exposes 5 tools: search_applications shows the pending queue scoped to allowed blocks, get_application shows one case with its audit history, approve_application and reject_application record decisions, and get_audit_history shows the full trail."
 
-```bash
-EVAL_RUN_WORKFLOW=1 python evals/runner.py
+> "Only pending applications can be decided. A rejection requires a reason. Every decision writes to the audit log with the officer's identity."
+
+**Show:** Scroll through the terminal output showing the officer endpoint checks:
+```
+"endpoint": "officer",
+"checks": [
+  {"name": "initialize", "passed": true},
+  {"name": "tool isolation", "passed": true, "actual": [5 tools...]},
+  {"name": "protected tool call", "passed": true}
+]
 ```
 
-Use a fresh test citizen identity for the submission workflow. Never record real citizen information.
+---
 
-## Three-Minute Script
+### 1:20 - 1:50 | End-to-End Proof
 
-### 0:00-0:20 - Introduction
+**Say:**
+> "The eval runner proves the full workflow. A citizen submits an application through the MCP server. The database shows it as PENDING. The officer searches the queue, finds it, and approves it. The database confirms APPROVED. The citizen checks status and sees APPROVED."
 
-Say:
-
-> I built an agent-accessible old-age pension workflow for Sewa Setu using two separate MCP servers. Citizens can get guidance, submit an application, track it, and withdraw a pending application. Officers can search the queue, inspect applications, approve or reject them, and view the audit history. The existing portal and PostgreSQL database remain the system of record.
-
-Show your face briefly, then switch to the shared screen.
-
-### 0:20-0:55 - Citizen Experience
-
-Show the citizen MCP tool list or the evaluation output. Explain:
-
-- `get_form_guidance` explains each form step.
-- `get_required_documents` gives the current age-proof requirement.
-- `submit_application` validates age, bank account, IFSC, document type and size, deadline, duplicate applications, and allowed blocks.
-- The citizen identity comes from the OAuth token, not from a tool argument.
-- Bank details and document paths are not exposed in normal status responses.
-
-Show the portal or dashboard only with test data.
-
-### 0:55-1:25 - Officer Experience
-
-Show the officer tool list or officer MCP endpoint. Explain:
-
-- Officers have a separate endpoint and cannot see citizen tools.
-- `search_applications` shows the queue within the configured block scope.
-- `get_application` shows safe application metadata and audit history.
-- `approve_application` and `reject_application` only work for pending applications.
-- Rejection requires a reason.
-- Every decision records the officer actor and decision in `audit_log`.
-
-### 1:25-1:55 - End-to-End Proof
-
-Show the evaluator result and point to these checks:
-
-```text
-citizen submission: true
-officer sees submitted application: true
-officer approval: true
-citizen sees approved status: true
+**Show:** The workflow section of the terminal output:
+```
+"workflow": {
+  "checks": [
+    {"name": "citizen submission", "passed": true},
+    {"name": "database shows PENDING", "passed": true, "detail": "status=PENDING"},
+    {"name": "officer sees submitted application", "passed": true},
+    {"name": "officer approval", "passed": true},
+    {"name": "database shows APPROVED", "passed": true, "detail": "status=APPROVED, decided_by=admin"},
+    {"name": "citizen sees approved status", "passed": true}
+  ],
+  "passed": true
+}
 ```
 
-Say:
+**Then show:** The eval dashboard at `http://localhost:8000/eval-dashboard` — it shows the same results as a web page.
 
-> This proves the citizen submission, officer review, approval, audit-backed mutation, and citizen follow-up use the same portal database.
+---
 
-Then show `/eval-dashboard` and point out the citizen and officer endpoint checks.
+### 1:50 - 2:30 | Personas and Evals
 
-### 1:55-2:30 - Personas and Evals
+**Say:**
+> "I invented three personas to test the system. Savitri Devi, 67, checking her pension status — she needs clear, simple answers and must not see anyone else's data. Ramohans Yadav, 72, applying for the first time — he needs help with technology and must upload age proof and bank details. Ramesh Kumar, the block officer — he needs a focused queue and accountable decisions."
 
-Explain the test personas:
+> "The evals use real HTTP transport, not mocks. They verify the final state in the database directly. The dashboard shows all personas, scenarios, and results."
 
-- Savitri Devi: an older citizen who needs short, clear guidance and confirmation at each step.
-- Ramesh Kumar: a block officer who needs a focused pending queue and accountable decisions.
+**Show:** The eval dashboard personas table and scenarios table.
 
-Explain the evaluation approach:
+---
 
-- Use real Streamable HTTP MCP transport.
-- Check tool isolation between citizen and officer endpoints.
-- Test validation and authorization boundaries.
-- Verify the final status in the portal database.
-- Redact credentials, tokens, and private documents from results.
+### 2:30 - 3:00 | Design Decisions and Lesson
 
-### 2:30-3:00 - Design Decisions and Learning
+**Say:**
+> "Three decisions mattered most. First, identity comes from the OAuth token — tool arguments cannot override who you are. Second, the portal stays the system of record — MCP servers write to the same database, so applications are visible in both places. Third, separate least-privilege endpoints — citizen and officer tools are isolated, and the assistant only works for a subset of blocks."
 
-Mention these three decisions:
+> "With more time, I would build a Gemini bridge so more AI assistants can plug in. But the MCP standard is open — any client can connect today."
 
-1. **Identity from OAuth:** tool arguments cannot override the authenticated citizen or officer identity.
-2. **Portal as system of record:** MCP writes to the existing applications and audit tables so web and agent-created applications are visible in both places.
-3. **Separate least-privilege endpoints:** citizen and officer tools are exposed through different MCP servers with separate audiences and block scope.
+**Show:** Your face. End the recording.
 
-Close with:
+---
 
-> The most important lesson was that an AI assistant needs structured guidance and strict validation, not just database access. With more time, I would import the portal's validation and creation helpers directly instead of mirroring those rules in the MCP service, and I would expand the conversational evaluations with more real client transcripts.
+## Quick Reference
 
-## Recording Checklist
+| What | Why |
+|------|-----|
+| `ADMIN_PASSWORD=dev-password docker compose up -d` | Starts all 6 containers |
+| `./get_tokens.sh dev-password 9876500000` | Gets OAuth tokens + runs full test |
+| `http://localhost:8000/eval-dashboard` | Web page showing test results |
+| Terminal output from runner | Shows the actual MCP checks passing |
 
-- [ ] Face shown briefly at the beginning.
-- [ ] Total duration is no more than three minutes.
-- [ ] Citizen MCP endpoint shown.
-- [ ] Officer MCP endpoint shown.
-- [ ] Citizen submission demonstrated or evaluator result shown.
-- [ ] Officer approval demonstrated or evaluator result shown.
-- [ ] `/eval-dashboard` shown.
-- [ ] Personas and evaluation method explained.
-- [ ] Three design decisions explained.
-- [ ] One lesson or future improvement explained.
-- [ ] No passwords, OTPs, access tokens, refresh tokens, or database credentials visible.
+## Before You Hit Record
+
+- [ ] Stack is running (`docker compose ps` shows 6 containers)
+- [ ] Eval dashboard is open in a browser tab
+- [ ] Terminal with eval runner output is visible
+- [ ] No passwords or tokens visible on screen
+- [ ] Loom is set to "Screen + Cam" mode

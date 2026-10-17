@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-11T11:14:20.338140+00:00",
+  "generated_at": "2026-10-17T20:03:02.311944+00:00",
   "endpoints": [
     {
       "endpoint": "citizen",
@@ -20,10 +20,6 @@
             "get_connected_applications",
             "withdraw_application"
           ]
-        },
-        {
-          "name": "public tool call",
-          "passed": true
         },
         {
           "name": "protected tool call",
@@ -65,12 +61,22 @@
         "passed": true
       },
       {
+        "name": "database shows PENDING",
+        "passed": true,
+        "detail": "status=PENDING, decided_by=None"
+      },
+      {
         "name": "officer sees submitted application",
         "passed": true
       },
       {
         "name": "officer approval",
         "passed": true
+      },
+      {
+        "name": "database shows APPROVED",
+        "passed": true,
+        "detail": "status=APPROVED, decided_by=admin"
       },
       {
         "name": "citizen sees approved status",

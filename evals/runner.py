@@ -158,7 +158,7 @@ def _db_connection():
     """Direct database connection for post-workflow verification."""
     import psycopg2
     return psycopg2.connect(
-        host=os.getenv("DB_HOST", "db"),
+        host=os.getenv("DB_HOST", "localhost"),
         port=os.getenv("DB_PORT", "5432"),
         dbname=os.getenv("DB_NAME", "sewasetu"),
         user=os.getenv("DB_USER", "sewasetu"),
