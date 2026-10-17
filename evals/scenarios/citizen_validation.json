@@ -1,0 +1,78 @@
+{
+  "id": "citizen-validation-01",
+  "name": "Citizen MCP validation rules",
+  "description": "Verify that the citizen MCP server applies the same validation rules as the portal.",
+  "persona": "ramohans-yadav-02",
+  "cases": [
+    {
+      "name": "underage applicant is rejected",
+      "input": {
+        "applicant_name": "Test User",
+        "dob": "01/01/1970",
+        "village": "Rampur",
+        "block": "Sonari",
+        "bank_account": "123456789",
+        "ifsc": "SBIN0003077",
+        "age_proof_filename": "proof.pdf",
+        "age_proof_base64": "dGVzdA=="
+      },
+      "expected_error": "applicant must be 60 years of age or above"
+    },
+    {
+      "name": "invalid IFSC is rejected",
+      "input": {
+        "applicant_name": "Test User",
+        "dob": "01/01/1950",
+        "village": "Rampur",
+        "block": "Sonari",
+        "bank_account": "123456789",
+        "ifsc": "INVALID",
+        "age_proof_filename": "proof.pdf",
+        "age_proof_base64": "dGVzdA=="
+      },
+      "expected_error": "IFSC must be 11 characters"
+    },
+    {
+      "name": "invalid bank account is rejected",
+      "input": {
+        "applicant_name": "Test User",
+        "dob": "01/01/1950",
+        "village": "Rampur",
+        "block": "Sonari",
+        "bank_account": "123",
+        "ifsc": "SBIN0003077",
+        "age_proof_filename": "proof.pdf",
+        "age_proof_base64": "dGVzdA=="
+      },
+      "expected_error": "bank account number must be 9 to 18 digits"
+    },
+    {
+      "name": "unsupported block is rejected",
+      "input": {
+        "applicant_name": "Test User",
+        "dob": "01/01/1950",
+        "village": "Rampur",
+        "block": "Rajapara",
+        "bank_account": "123456789",
+        "ifsc": "SBIN0003077",
+        "age_proof_filename": "proof.pdf",
+        "age_proof_base64": "dGVzdA=="
+      },
+      "expected_error": "block is not supported by this assistant"
+    },
+    {
+      "name": "missing document is rejected",
+      "input": {
+        "applicant_name": "Test User",
+        "dob": "01/01/1950",
+        "village": "Rampur",
+        "block": "Sonari",
+        "bank_account": "123456789",
+        "ifsc": "SBIN0003077",
+        "age_proof_filename": "",
+        "age_proof_base64": ""
+      },
+      "expected_error": "age proof document is required"
+    }
+  ]
+}

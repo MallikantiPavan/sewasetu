@@ -3,8 +3,24 @@
 <h2>Evaluation Dashboard</h2>
 {% if results.error %}<p class="note">{{ results.error }}</p>{% endif %}
 {% if results.generated_at %}<p class="note">Generated: {{ results.generated_at }}</p>{% endif %}
+
+<h3>Personas</h3>
+<table class="tbl">
+  <tr><th>Name</th><th>Type</th><th>Age</th><th>Village</th><th>Goal</th></tr>
+  {% for persona in personas %}
+  <tr>
+    <td>{{ persona.name }}</td>
+    <td>{{ persona.type }}</td>
+    <td>{{ persona.get("age", "—") }}</td>
+    <td>{{ persona.get("village", "—") }}</td>
+    <td>{{ persona.goal }}</td>
+  </tr>
+  {% endfor %}
+</table>
+
+<h3>Endpoint Checks</h3>
 {% for endpoint in results.endpoints or [] %}
-<h3>{{ endpoint.endpoint|capitalize }} MCP</h3>
+<h4>{{ endpoint.endpoint|capitalize }} MCP</h4>
 <table class="tbl">
   <tr><th>Check</th><th>Result</th><th>Details</th></tr>
   {% for check in endpoint.checks or [] %}
@@ -17,4 +33,31 @@
 </table>
 <p><b>Endpoint result:</b> {% if endpoint.passed %}PASS{% else %}FAIL{% endif %}</p>
 {% endfor %}
+
+{% if results.workflow %}
+<h3>End-to-End Workflow</h3>
+<table class="tbl">
+  <tr><th>Check</th><th>Result</th><th>Details</th></tr>
+  {% for check in results.workflow.checks or [] %}
+  <tr>
+    <td>{{ check.name }}</td>
+    <td>{% if check.passed %}PASS{% else %}FAIL{% endif %}</td>
+    <td>{{ check.failure or "" }}</td>
+  </tr>
+  {% endfor %}
+</table>
+<p><b>Workflow result:</b> {% if results.workflow.passed %}PASS{% else %}FAIL{% endif %}</p>
+{% endif %}
+
+<h3>Test Scenarios</h3>
+<table class="tbl">
+  <tr><th>ID</th><th>Name</th><th>Description</th></tr>
+  {% for scenario in scenarios %}
+  <tr>
+    <td>{{ scenario.id }}</td>
+    <td>{{ scenario.name }}</td>
+    <td>{{ scenario.description or "—" }}</td>
+  </tr>
+  {% endfor %}
+</table>
 {% endblock %}

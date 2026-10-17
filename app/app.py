@@ -15,14 +15,19 @@ import hashlib
 import configparser
 import json
 from datetime import datetime, date, timedelta
-from zoneinfo import ZoneInfo
 
-IST = ZoneInfo("Asia/Kolkata")
-
-
-def now_ist():
-    """The portal's clock is Indian Standard Time regardless of where the server runs."""
-    return datetime.now(IST).replace(tzinfo=None)
+from sewasetu_common.validation import (
+    ACTIVE_STATUSES,
+    ALL_BLOCKS,
+    MIN_AGE,
+    SCHEME_DEADLINE,
+    age_on,
+    hash_password,
+    now_ist,
+    parse_dob,
+    sanitize,
+    validate_application,
+)
 
 import requests
 import psycopg2
@@ -45,17 +50,13 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 
 # An applicant may hold at most one application in these states at a time.
 # WITHDRAWN and REJECTED applications do not block a fresh application.
-ACTIVE_STATUSES = ("PENDING", "APPROVED", "DEEMED_APPROVED")
 
 SMS_GATEWAY_URL = config.get("app", "sms_gateway_url")
 OTP_VALIDITY_SECONDS = config.getint("app", "otp_validity_seconds")
 UPLOAD_DIR = config.get("app", "upload_dir")
-SCHEME_DEADLINE = datetime.strptime(config.get("pension", "scheme_deadline"),
-                                    "%Y-%m-%d %H:%M")
-MIN_AGE = config.getint("pension", "min_age")
 SLA_DAYS = config.getint("pension", "sla_days")
 
-BLOCKS = ["Sonari", "Rajapara", "Dhemaji Pathar", "Borgaon", "Namti", "Khelua"]
+BLOCKS = ALL_BLOCKS
 
 import logging
 _logdir = "/var/log/sewasetu"
@@ -77,18 +78,6 @@ def get_db():
         user=config.get("database", "user"),
         password=config.get("database", "password"),
     )
-
-
-def sanitize(value, maxlen=100):
-    # Trim whitespace and cap at the column width, counting characters (not
-    # bytes) so Assamese/Bangla names are stored intact.
-    if value is None:
-        return ""
-    return value.strip()[:maxlen]
-
-
-def hash_password(p):
-    return hashlib.sha256(p.encode("utf-8")).hexdigest()
 
 
 def send_sms(mobile, text):
@@ -121,61 +110,10 @@ def write_audit(cur, app_id, action, actor, note=""):
 # Every channel that creates an application (the web form, any API, any batch
 # import) MUST go through validate_application() and create_application() so
 # that no channel admits an application another channel would refuse.
+#
+# The implementation lives in sewasetu_common.validation and is shared with
+# the MCP servers so that the rules can never drift between channels.
 # ---------------------------------------------------------------------------
-
-def parse_dob(raw):
-    try:
-        return datetime.strptime((raw or "").strip(), "%d/%m/%Y").date()
-    except ValueError:
-        return None
-
-
-def age_on(dob, on):
-    return on.year - dob.year - ((on.month, on.day) < (dob.month, dob.day))
-
-
-def validate_application(data, doc_path):
-    """Validate a complete application. Returns (errors, cleaned).
-
-    `errors` is a list of plain-language problems (empty when valid);
-    `cleaned` holds the normalised values ready for create_application().
-    """
-    errors = []
-    cleaned = {
-        "applicant_name": sanitize(data.get("applicant_name")),
-        "village": (data.get("village") or "").strip(),
-        "block": (data.get("block") or "").strip(),
-        "gender": data.get("gender") or "",
-        "marital_status": data.get("marital_status") or "",
-        "husband_name": (data.get("husband_name") or "").strip(),
-        "husband_employer": "",  # no longer collected (not a scheme requirement)
-        "bank_account": re.sub(r"[\s-]", "", data.get("bank_account") or ""),
-        "ifsc": re.sub(r"[\s-]", "", (data.get("ifsc") or "")).upper(),
-        "doc_path": doc_path or "",
-        "dob": None,
-    }
-    for label, key in (("full name", "applicant_name"), ("village", "village"),
-                       ("block", "block"), ("bank account", "bank_account")):
-        if not cleaned[key]:
-            errors.append("%s is required" % label)
-    if cleaned["block"] and cleaned["block"] not in BLOCKS:
-        errors.append("block must be one of: " + ", ".join(BLOCKS))
-    if cleaned["bank_account"] and not re.fullmatch(r"\d{9,18}", cleaned["bank_account"]):
-        errors.append("bank account number must be 9 to 18 digits")
-    if cleaned["ifsc"] and not re.fullmatch(r"[A-Z]{4}0[A-Z0-9]{6}", cleaned["ifsc"]):
-        errors.append("IFSC must be 11 characters, e.g. SBIN0003077")
-    dob = parse_dob(data.get("dob"))
-    if dob is None:
-        errors.append("date of birth must be given as DD/MM/YYYY")
-    else:
-        cleaned["dob"] = dob
-        if age_on(dob, now_ist().date()) < MIN_AGE:
-            errors.append("applicant must be %d years of age or above" % MIN_AGE)
-    if not cleaned["doc_path"]:
-        errors.append("age proof document is required")
-    if now_ist() > SCHEME_DEADLINE:
-        errors.append("the application window has closed")
-    return errors, cleaned
 
 
 def active_application(cur, mobile):
@@ -242,7 +180,29 @@ def eval_dashboard():
                 result = loaded
     except (OSError, ValueError):
         result["error"] = "Evaluation results are not available yet."
-    return render_template("eval_dashboard.html", results=result)
+
+    # Load personas and scenarios for display.
+    personas = []
+    personas_dir = os.path.join(BASE_DIR, "..", "evals", "personas")
+    try:
+        for filename in sorted(os.listdir(personas_dir)):
+            if filename.endswith(".json"):
+                with open(os.path.join(personas_dir, filename), encoding="utf-8") as f:
+                    personas.append(json.load(f))
+    except (OSError, ValueError):
+        pass
+
+    scenarios = []
+    scenarios_dir = os.path.join(BASE_DIR, "..", "evals", "scenarios")
+    try:
+        for filename in sorted(os.listdir(scenarios_dir)):
+            if filename.endswith(".json"):
+                with open(os.path.join(scenarios_dir, filename), encoding="utf-8") as f:
+                    scenarios.append(json.load(f))
+    except (OSError, ValueError):
+        pass
+
+    return render_template("eval_dashboard.html", results=result, personas=personas, scenarios=scenarios)
 
 
 @app.route("/__gateway/", defaults={"subpath": ""})

@@ -1,0 +1,44 @@
+{
+  "id": "officer-workflow-01",
+  "name": "Officer review and decision workflow",
+  "description": "Verify that the officer MCP server allows searching, viewing, and deciding applications with proper audit trail.",
+  "persona": "ramesh-officer-01",
+  "cases": [
+    {
+      "name": "officer can search pending applications",
+      "tool": "search_applications",
+      "input": {"status": "PENDING", "limit": 10},
+      "expected": "returns list of pending applications in allowed blocks"
+    },
+    {
+      "name": "officer can view application with audit history",
+      "tool": "get_application",
+      "input": {"application_no": "<from_previous_step>"},
+      "expected": "returns application details and audit trail"
+    },
+    {
+      "name": "officer can approve with note",
+      "tool": "approve_application",
+      "input": {"application_no": "<from_previous_step>", "decision_note": "Documents verified"},
+      "expected": "status changes to APPROVED, audit_log entry created"
+    },
+    {
+      "name": "officer can reject with reason",
+      "tool": "reject_application",
+      "input": {"application_no": "<from_previous_step>", "rejection_reason": "Age proof unclear"},
+      "expected": "status changes to REJECTED, audit_log entry created"
+    },
+    {
+      "name": "rejection without reason is rejected",
+      "tool": "reject_application",
+      "input": {"application_no": "<from_previous_step>", "rejection_reason": ""},
+      "expected_error": "A rejection reason is required"
+    },
+    {
+      "name": "cannot decide non-pending application",
+      "tool": "approve_application",
+      "input": {"application_no": "<already_decided>", "decision_note": "test"},
+      "expected_error": "Only a pending application can be decided"
+    }
+  ]
+}

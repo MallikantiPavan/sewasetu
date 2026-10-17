@@ -3,9 +3,18 @@
   "type": "citizen",
   "name": "Savitri Devi",
   "age": 67,
+  "mobile": "9876500001",
   "village": "Rampur",
+  "block": "Sonari",
   "style": "Short Hindi-English sentences; asks for confirmation.",
   "goal": "Understand the required documents and check pension status.",
   "constraints": ["Needs clear, simple answers", "Must not see another citizen's data"],
-  "expected": {"required_document_tool": "get_required_documents", "status_scope": "authenticated citizen only"}
+  "expected": {
+    "required_document_tool": "get_required_documents",
+    "status_scope": "authenticated citizen only",
+    "final_db_state": {
+      "portal_users": "row exists for mobile 9876500001",
+      "applications": "no active application (Savitri is only checking status)"
+    }
+  }
 }

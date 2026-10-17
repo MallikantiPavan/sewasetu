@@ -4,8 +4,14 @@
   "name": "Ramesh Kumar",
   "role": "Block officer",
   "block": "Sonari",
+  "username": "admin",
   "style": "Precise and task-focused.",
   "goal": "Review pending applications and record a justified decision.",
   "constraints": ["Must not approve non-pending applications", "Must leave an audit trail"],
-  "expected": {"required_tools": ["search_applications", "get_application", "approve_application", "reject_application", "get_audit_history"]}
+  "expected": {
+    "required_tools": ["search_applications", "get_application", "approve_application", "reject_application", "get_audit_history"],
+    "final_db_state": {
+      "audit_log": "APPROVED or REJECTED entry with actor admin:admin and decision note"
+    }
+  }
 }

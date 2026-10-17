@@ -62,6 +62,7 @@ services:
       MCP_AUDIENCE: ${CITIZEN_MCP_AUDIENCE:-http://localhost:8101}
       MCP_ALLOWED_BLOCKS: ${MCP_ALLOWED_BLOCKS:-Sonari}
       UPLOAD_DIR: /var/sewasetu/uploads
+      SMS_GATEWAY_URL: http://smsgw:8025
       MCP_HOST: 0.0.0.0
       MCP_PORT: 8101
     depends_on:

@@ -1,0 +1,20 @@
+{
+  "id": "ramohans-yadav-02",
+  "type": "citizen",
+  "name": "Ramohans Yadav",
+  "age": 72,
+  "mobile": "9876500002",
+  "village": "Khelua",
+  "block": "Sonari",
+  "style": "Speaks Hindi; needs help with technology; asks grandson to confirm details.",
+  "goal": "Apply for old age pension for the first time.",
+  "constraints": ["Must upload age proof", "Must provide bank account and IFSC", "Must be 60 or above"],
+  "expected": {
+    "required_tools": ["get_form_guidance", "submit_application"],
+    "final_db_state": {
+      "applications": "one PENDING application for mobile 9876500002",
+      "portal_users": "row exists for mobile 9876500002",
+      "audit_log": "SUBMIT entry exists"
+    }
+  }
+}

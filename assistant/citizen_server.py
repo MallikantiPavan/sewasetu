@@ -13,6 +13,17 @@ from mcp.server.fastmcp import Context, FastMCP
 
 import auth
 from db import get_cursor
+from sewasetu_common.validation import (
+    ACTIVE_STATUSES,
+    ALLOWED_DOCUMENT_EXTENSIONS,
+    MAX_DOCUMENT_BYTES,
+    SCHEME_DEADLINE,
+    age_on,
+    allowed_blocks,
+    hash_password,
+    now_ist,
+    validate_application,
+)
 
 
 MCP_RESOURCE = (
@@ -26,8 +37,6 @@ mcp = FastMCP(
         issuer_url=auth.issuer(),
         resource_server_url=MCP_RESOURCE,
         required_scopes=["citizen"],
-        # The verifier checks the token's audience against the portal issuer and
-        # this server's URL itself, so the transport need not re-check it.
         validate_token_resource=False,
     ),
 )
@@ -36,15 +45,9 @@ APPLICATION_COLUMNS = (
     "application_no, applicant_name, mobile, dob, village, block, "
     "bank_account, ifsc, status, submitted_at, decided_at"
 )
-ALLOWED_BLOCKS = tuple(
-    block.strip() for block in os.getenv("MCP_ALLOWED_BLOCKS", "Sonari").split(",")
-    if block.strip()
-)
+ALLOWED_BLOCKS = allowed_blocks()
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "/var/sewasetu/uploads")
-MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
-SCHEME_DEADLINE = datetime.strptime(
-    os.getenv("SCHEME_DEADLINE", "2026-10-31 23:59"), "%Y-%m-%d %H:%M"
-)
+SMS_GATEWAY_URL = os.getenv("SMS_GATEWAY_URL", "http://smsgw:8025")
 
 
 def _iso(value):
@@ -72,6 +75,16 @@ def _citizen_mobile(ctx: Context):
     """Return the authenticated citizen's mobile number from the access token."""
     claims = auth.authenticate(ctx.request_context.request, MCP_RESOURCE, "citizen")
     return claims["sub"].split(":", 1)[1]
+
+
+def _send_sms(mobile, text):
+    """Send an SMS via the simulated gateway (best-effort)."""
+    try:
+        import requests
+        requests.post(SMS_GATEWAY_URL + "/api/send",
+                      json={"to": mobile, "text": text}, timeout=5)
+    except Exception:
+        pass
 
 
 @mcp.tool()
@@ -181,50 +194,43 @@ def submit_application(
     marital_status: str = "",
     husband_name: str = "",
 ) -> dict:
-    """Validate and submit a pension application for the authenticated citizen."""
+    """Validate and submit a pension application for the authenticated citizen.
+
+    Uses the same validation rules as the portal (sewasetu_common.validation).
+    """
     mobile = _citizen_mobile(ctx)
-    applicant_name = applicant_name.strip()[:100]
-    village = village.strip()
-    block = block.strip()
-    bank_account = re.sub(r"[\s-]", "", bank_account or "")
-    ifsc = re.sub(r"[\s-]", "", ifsc or "").upper()
-    errors = []
-    if not applicant_name:
-        errors.append("full name is required")
-    if not village:
-        errors.append("village is required")
-    if not block:
-        errors.append("block is required")
-    elif block not in ALLOWED_BLOCKS:
-        errors.append("block is not supported by this assistant")
-    if not re.fullmatch(r"\d{9,18}", bank_account):
-        errors.append("bank account number must be 9 to 18 digits")
-    if not re.fullmatch(r"[A-Z]{4}0[A-Z0-9]{6}", ifsc):
-        errors.append("IFSC must be 11 characters, e.g. SBIN0003077")
-    try:
-        birth_date = datetime.strptime(dob.strip(), "%d/%m/%Y").date()
-    except (AttributeError, ValueError):
-        birth_date = None
-        errors.append("date of birth must use DD/MM/YYYY")
-    if birth_date:
-        today = datetime.now().date()
-        age = today.year - birth_date.year - ((today.month, today.day) < (birth_date.month, birth_date.day))
-        if age < 60:
-            errors.append("applicant must be 60 years of age or above")
-    if datetime.now() > SCHEME_DEADLINE:
-        errors.append("the application window has closed")
+
+    # Decode and save the document first so validation can check the path.
     suffix = (age_proof_filename or "").lower().rsplit(".", 1)[-1]
-    if suffix not in ("pdf", "jpg", "jpeg", "png"):
-        errors.append("age proof must be a JPG, PNG, or PDF")
+    if suffix not in ALLOWED_DOCUMENT_EXTENSIONS:
+        raise ValueError("age proof must be a JPG, PNG, or PDF")
     try:
         document = base64.b64decode(age_proof_base64, validate=True)
     except (ValueError, TypeError):
         document = b""
-        errors.append("age proof content must be valid base64")
+        raise ValueError("age proof content must be valid base64")
     if not document:
-        errors.append("age proof document is required")
-    elif len(document) > MAX_DOCUMENT_BYTES:
-        errors.append("age proof must be no larger than 5 MB")
+        raise ValueError("age proof document is required")
+    if len(document) > MAX_DOCUMENT_BYTES:
+        raise ValueError("age proof must be no larger than 5 MB")
+
+    Path(UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
+    path = Path(UPLOAD_DIR) / ("%s_%s.%s" % (mobile, uuid.uuid4().hex, suffix))
+    path.write_bytes(document)
+
+    # Build the data dict for shared validation.
+    data = {
+        "applicant_name": applicant_name,
+        "dob": dob,
+        "village": village,
+        "block": block,
+        "bank_account": bank_account,
+        "ifsc": ifsc,
+        "gender": gender,
+        "marital_status": marital_status,
+        "husband_name": husband_name,
+    }
+    errors, cleaned = validate_application(data, str(path), blocks=ALLOWED_BLOCKS)
     if errors:
         raise ValueError("; ".join(errors))
 
@@ -238,10 +244,7 @@ def submit_application(
         existing = cursor.fetchone()
         if existing:
             raise ValueError("An active application already exists for this mobile number.")
-        Path(UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
-        path = Path(UPLOAD_DIR) / ("%s_%s.%s" % (mobile, uuid.uuid4().hex, suffix))
-        path.write_bytes(document)
-        application_no = "SSP%s%06d" % (datetime.now().strftime("%y"), uuid.uuid4().int % 1000000)
+        application_no = "SSP%s%06d" % (now_ist().strftime("%y"), uuid.uuid4().int % 1000000)
         cursor.execute(
             "INSERT INTO applications "
             "(application_no, applicant_name, mobile, dob, gender, marital_status, "
@@ -249,8 +252,10 @@ def submit_application(
             "doc_path, status, submitted_at) "
             "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'PENDING',NOW()) "
             "RETURNING id",
-            (application_no, applicant_name, mobile, birth_date, gender, marital_status,
-             husband_name.strip(), "", village, block, bank_account, ifsc, str(path)),
+            (application_no, cleaned["applicant_name"], mobile, cleaned["dob"],
+             cleaned["gender"], cleaned["marital_status"], cleaned["husband_name"], "",
+             cleaned["village"], cleaned["block"], cleaned["bank_account"], cleaned["ifsc"],
+             str(path)),
         )
         application_id = cursor.fetchone()[0]
         cursor.execute(
@@ -260,13 +265,14 @@ def submit_application(
         )
         cursor.execute("SELECT count(*) FROM portal_users WHERE mobile = %s", (mobile,))
         if cursor.fetchone()[0] == 0:
-            password_hash = hashlib.sha256(
-                birth_date.strftime("%d%m%Y").encode("utf-8")
-            ).hexdigest()
+            password_hash = hash_password(cleaned["dob"].strftime("%d%m%Y"))
             cursor.execute(
                 "INSERT INTO portal_users (mobile, password_hash) VALUES (%s, %s)",
                 (mobile, password_hash),
             )
+
+    _send_sms(mobile, "Sewa Setu: application %s received. Track at the status portal "
+                     "with mobile no. and password (DOB as DDMMYYYY)." % application_no)
     return {"application_no": application_no, "status": "PENDING", "block": block}
 
 
@@ -325,4 +331,3 @@ if __name__ == "__main__":
     mcp.settings.host = os.getenv("MCP_HOST", "0.0.0.0")
     mcp.settings.port = int(os.getenv("MCP_PORT", "8101"))
     mcp.run(transport="streamable-http")
-

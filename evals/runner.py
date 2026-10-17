@@ -5,7 +5,7 @@ endpoint refuses anonymous connections, that the two endpoints expose only their
 own tools, and (when tokens are supplied via the environment) that a protected
 tool call succeeds. An optional end-to-end workflow submits an application as a
 citizen and approves it as an officer, then confirms the citizen sees the new
-status.
+status by reading the database directly.
 
 Tokens are read from the environment and never written to result files.
 """
@@ -154,6 +154,39 @@ def evaluate_endpoint(name, url, expected_tools, token=None):
     return {"endpoint": name, "checks": checks, "passed": all(c["passed"] is not False for c in checks)}
 
 
+def _db_connection():
+    """Direct database connection for post-workflow verification."""
+    import psycopg2
+    return psycopg2.connect(
+        host=os.getenv("DB_HOST", "db"),
+        port=os.getenv("DB_PORT", "5432"),
+        dbname=os.getenv("DB_NAME", "sewasetu"),
+        user=os.getenv("DB_USER", "sewasetu"),
+        password=os.getenv("DB_PASSWORD", "sewasetu123"),
+    )
+
+
+def _verify_db_state(application_no, expected_status):
+    """Read the database directly to verify the application state."""
+    try:
+        conn = _db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT status, decided_by FROM applications WHERE application_no = %s",
+            (application_no,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        conn.close()
+        if row is None:
+            return False, "application not found in database"
+        if row[0] != expected_status:
+            return False, "expected status %s, found %s" % (expected_status, row[0])
+        return True, "status=%s, decided_by=%s" % (row[0], row[1])
+    except Exception as exc:
+        return False, "DB error: %s" % str(exc)
+
+
 def evaluate_workflow(citizen_url, officer_url, citizen_token, officer_token):
     checks = []
     try:
@@ -189,6 +222,14 @@ def evaluate_workflow(citizen_url, officer_url, citizen_token, officer_token):
         if not application_no:
             return {"checks": checks, "passed": False}
 
+        # Verify in database directly.
+        db_ok, db_detail = _verify_db_state(application_no, "PENDING")
+        checks.append({
+            "name": "database shows PENDING",
+            "passed": db_ok,
+            **({"failure": db_detail} if not db_ok else {"detail": db_detail}),
+        })
+
         search = tool_call(
             officer_url, officer_session, "search_applications",
             {"application_no": application_no, "status": "PENDING", "limit": 5},
@@ -214,6 +255,14 @@ def evaluate_workflow(citizen_url, officer_url, citizen_token, officer_token):
             **({"failure": decision_error} if decision_error else {}),
         })
 
+        # Verify in database directly.
+        db_ok, db_detail = _verify_db_state(application_no, "APPROVED")
+        checks.append({
+            "name": "database shows APPROVED",
+            "passed": db_ok,
+            **({"failure": db_detail} if not db_ok else {"detail": db_detail}),
+        })
+
         status = tool_call(
             citizen_url, citizen_session, "get_application_status", {}, citizen_token
         )
@@ -227,6 +276,14 @@ def evaluate_workflow(citizen_url, officer_url, citizen_token, officer_token):
     except Exception as exc:
         checks.append({"name": "end-to-end workflow", "passed": False, "failure": str(exc)})
     return {"checks": checks, "passed": all(c["passed"] for c in checks)}
+
+
+def _load_json(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
 
 
 def main():

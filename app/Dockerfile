@@ -8,6 +8,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+COPY ../sewasetu_common /app/sewasetu_common
 
 RUN mkdir -p /var/sewasetu/uploads /var/log/sewasetu \
     && crontab /app/deploy/crontab
