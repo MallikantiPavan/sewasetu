@@ -1,9 +1,10 @@
 FROM python:3.11-slim
 
 WORKDIR /app
-COPY requirements.txt .
+COPY assistant/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY . .
+COPY assistant/ .
+COPY sewasetu_common /app/sewasetu_common
 
 ENV PYTHONPATH=/app
 ENV DB_HOST=db
